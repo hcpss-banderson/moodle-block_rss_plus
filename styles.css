@@ -1,16 +1,18 @@
 .block_rss_plus .content {
-padding-left:0 !important;
-padding-right:0 !important;
-	
+    padding: 0 !important;
 }
 
-.rsslink{
-background : #eee !important ;
-padding:10px;
+.rsslink {
+    background: #ff8d1b none repeat scroll 0 0 !important;
+    padding: 10px;
 }
 
 .rsslink a {
-color: #747474 ;
+color: #fff ;
+}
+
+.rsslink a:hover {
+color: #000 ;
 }
 
 
@@ -18,8 +20,6 @@ color: #747474 ;
 background : #fff !important;
 min-height: 100px;
 width: 100%;
-margin-top:4px !important;
-margin-bottom:4px !important;
 }
 
 .rssdescription{
