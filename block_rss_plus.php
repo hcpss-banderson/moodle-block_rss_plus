@@ -90,9 +90,8 @@
         /* ---------------------------------
          * Begin Normal Display of Block Content
          * --------------------------------- */
-
+        $renderer = $this->page->get_renderer('block_rss_plus');
         $output = '';
-
 
         if (!empty($this->config->rssid)) {
             list($rss_ids_sql, $params) = $DB->get_in_or_equal($this->config->rssid);
@@ -105,8 +104,26 @@
                 $showtitle = true;
             }
 
-            foreach($rss_feeds as $feed){
-                $output.= $this->get_feed_html($feed, $maxentries, $showtitle);
+            foreach($rss_feeds as $feedrecord){
+                require_once($CFG->libdir.'/simplepie/moodle_simplepie.php');
+
+                $feed = new \moodle_simplepie($feedrecord->url, 1000);
+
+                if(isset($CFG->block_rss_plus_timeout)){
+                    $feed->set_cache_duration($CFG->block_rss_plus_timeout*60);
+                }
+
+                if(debugging() && $feed->error()){
+                    return '<p>'. $feedrecord->url .' Failed with code: '.$feed->error().'</p>';
+                }
+
+                if(empty($feedrecord->preferredtitle)){
+                    $feedtitle = $this->format_title($feed->get_title());
+                } else {
+                    $feedtitle = $this->format_title($feedrecord->preferredtitle);
+                }
+                
+                $output .= $renderer->rss_feed($feed, $feedtitle, $maxentries);
             }
         }
 
@@ -129,140 +146,6 @@
     }
 
     /**
-     * Returns the html of a feed to be displaed in the block
-     *
-     * @param mixed feedrecord The feed record from the database
-     * @param int maxentries The maximum number of entries to be displayed
-     * @param boolean showtitle Should the feed title be displayed in html
-     * @return string html representing the rss feed content
-     */
-    function get_feed_html($feedrecord, $maxentries, $showtitle){
-        global $CFG;
-        require_once($CFG->libdir.'/simplepie/moodle_simplepie.php');
-
-        $feed = new moodle_simplepie($feedrecord->url);
-
-        if(isset($CFG->block_rss_plus_timeout)){
-            $feed->set_cache_duration($CFG->block_rss_plus_timeout*60);
-        }
-
-        if(debugging() && $feed->error()){
-            return '<p>'. $feedrecord->url .' Failed with code: '.$feed->error().'</p>';
-        }
-
-        $r = ''; // return string
-		
-		
-        if(empty($feedrecord->preferredtitle)){
-            $feedtitle = $this->format_title($feed->get_title());
-        }else{
-            $feedtitle = $this->format_title($feedrecord->preferredtitle);
-        }
-
-        $r.='<div class="rsswrap">';
-			$r.='<ul class="list no-overflow">'."\n";
-
-        $feeditems = $feed->get_items(0, $maxentries);
-        foreach($feeditems as $item){
-            $r.= $this->get_item_html($item);  
-					
-		
-        }
-		
-		
-		
-
-        $r.='</ul>';
-        $r.='</div>';
-
-
-
-
-
-        return $r;
-    }
-
-
-    /**
-     * Returns the html list item of a feed item
-     *
-     * @param mixed item simplepie_item representing the feed item
-     * @return string html li representing the rss feed item
-     */
-    
-	function get_item_html($item){
-
-        $link        = $item->get_link();
-        $title       = $item->get_title();
-        $description = $item->get_description();
-
-
-        if(empty($title)){
-            // no title present, use portion of description
-            $title = core_text::substr(strip_tags($description), 0, 20) . '...';
-        }else{
-            $title = break_up_long_words($title, 30);
-        }
-
-        if(empty($link)){
-            $link = $item->get_id();
-        } else {
-            //URLs in our RSS cache will be escaped (correctly as theyre store in XML)
-            //html_writer::link() will re-escape them. To prevent double escaping unescape here.
-            //This can by done using htmlspecialchars_decode() but moodle_url also has that effect
-            $link = new moodle_url($link);
-        }
-
-        $r = html_writer::start_tag('li');
-		
-		
-            $r.= html_writer::start_tag('div',array('class'=>'rsslink'));
-                $r.= html_writer::link(clean_param($link,PARAM_URL), s($title), array('onclick'=>'this.target="_blank"'));
-            $r.= html_writer::end_tag('div');
-
-
-
-                $description = break_up_long_words($description, 30);
-				$description = core_text::substr(strip_tags($description), 0, 255) . '';
-
-                $formatoptions = new stdClass();
-                $formatoptions->para = false;
-
-
-				
-                $r.= html_writer::start_tag('div',array('class'=>'rssimage'));
-				
-
-    /**
-     * Gets the thumbnail from the RSS feed. 
-     * Currently works best with BBC news feeds
-     * with little success on others.
-     * Need help on this bit.
-     * 
-     */
-
-				
-	if ($enclosure = $item->get_enclosure())
-	{
-	foreach ((array) $enclosure->get_thumbnail(1) as $thumbnail)
-		$r.='<img src="'.$thumbnail.'"/>'."\n";
-	
-	} 
-		
-		
-	
-                $r.= html_writer::end_tag('div');
-				
-				                $r.= html_writer::start_tag('div',array('class'=>'rssdescription'));
-                    $r.= format_text($description, FORMAT_HTML, $formatoptions, $this->page->course->id);
-                $r.= html_writer::end_tag('div');
-            
-        $r.= html_writer::end_tag('li');
-
-        return $r;
-    }
-
-     /**
      * Strips a large title to size and adds ... if title too long
      *
      * @param string title to shorten
